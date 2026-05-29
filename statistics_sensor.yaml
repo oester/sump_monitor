@@ -1,0 +1,21 @@
+# =============================================================================
+# Sump Pump Monitor — Statistics Sensor
+# =============================================================================
+# This sensor must be created through the Home Assistant UI as a flow-based
+# helper. It cannot be created via YAML. See INSTALL.md for instructions.
+#
+# Settings → Devices & Services → Helpers → Add Helper → Statistical characteristic
+#
+# Configuration:
+#   Name:                Sump Pump Interval Rolling Average
+#   Entity:              sensor.sump_pump_interval
+#   Characteristic:      mean
+#   Sampling size:       5
+#   Max age:             7 days
+#
+# The resulting entity ID will be:
+#   sensor.sump_pump_interval_rolling_average
+#
+# This sensor feeds the adaptive watchdog duration calculation in
+# automation.sump_pump_not_running_alert.
+# =============================================================================

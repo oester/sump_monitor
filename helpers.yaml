@@ -1,0 +1,159 @@
+# =============================================================================
+# Sump Pump Monitor — Helpers
+# =============================================================================
+# Copy the relevant sections into your existing helper YAML files, or create
+# new files and reference them from configuration.yaml via the !include
+# directive. UI-managed helpers (input_number, input_datetime, counter, timer)
+# can alternatively be created through Settings → Devices & Services → Helpers.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# INPUT DATETIME
+# Tracks the timestamp of the most recent sump run.
+# -----------------------------------------------------------------------------
+input_datetime:
+  sump_last_run:
+    name: "Sump Last Run"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-time-eight
+
+
+# -----------------------------------------------------------------------------
+# INPUT NUMBER
+# -----------------------------------------------------------------------------
+input_number:
+
+  # Stores the most recently completed interval in seconds.
+  # Range allows up to 7 days to handle winter/dry periods.
+  sump_last_interval:
+    name: "Sump Last Interval"
+    min: 0
+    max: 604800        # 7 days in seconds
+    step: 1
+    mode: box
+    unit_of_measurement: "s"
+    icon: mdi:counter
+
+  # Watchdog multiplier — how many times the rolling average to wait before alerting.
+  sump_alert_multiplier:
+    name: "Sump Alert Multiplier"
+    min: 1.5
+    max: 5.0
+    step: 0.1
+    mode: slider
+    unit_of_measurement: "×"
+    icon: mdi:multiply
+    initial: 2.5
+
+  # Minimum watchdog duration (minutes) — floor regardless of rolling average.
+  sump_alert_min_minutes:
+    name: "Sump Alert Min Minutes"
+    min: 10
+    max: 120
+    step: 5
+    mode: slider
+    unit_of_measurement: "min"
+    icon: mdi:timer-minus
+    initial: 30
+
+  # Maximum watchdog duration (minutes) — ceiling and unknown-average fallback.
+  sump_alert_max_minutes:
+    name: "Sump Alert Max Minutes"
+    min: 60
+    max: 480
+    step: 15
+    mode: slider
+    unit_of_measurement: "min"
+    icon: mdi:timer-plus
+    initial: 240
+
+
+# -----------------------------------------------------------------------------
+# COUNTER
+# Lifetime count of sump pump run cycles.
+# -----------------------------------------------------------------------------
+counter:
+  sump_pump_cycles:
+    name: "Sump Pump Cycles"
+    initial: 0
+    step: 1
+    restore: true
+    icon: mdi:counter
+
+
+# -----------------------------------------------------------------------------
+# TIMER
+# Watchdog timer — if it expires before the next sump run, an alert fires.
+# -----------------------------------------------------------------------------
+timer:
+  sump_pump_watchdog:
+    name: "Sump Pump Watchdog"
+    restore: true
+    icon: mdi:timer-alert
+
+
+# -----------------------------------------------------------------------------
+# TEMPLATE SENSORS
+# Add these to your template: section in configuration.yaml, or to a
+# templates.yaml file referenced via !include.
+#
+# NOTE: If you create these as UI helpers (Settings → Helpers → Add → Template),
+# you must paste the state template into the UI editor — the YAML below is for
+# reference only in that case. See INSTALL.md for details.
+# -----------------------------------------------------------------------------
+template:
+  - sensor:
+      # Interval between sump runs in human-readable format.
+      # Displays as HH:MM for intervals under 24 hours,
+      # or "N days, HH:MM" for longer intervals.
+      - name: "Sump Pump Interval Formatted"
+        icon: mdi:timer
+        state: >
+          {% set total_minutes = states('sensor.sump_pump_interval') | float(0) | int %}
+          {% set days = (total_minutes // 1440) | int %}
+          {% set hours = ((total_minutes % 1440) // 60) | int %}
+          {% set mins = (total_minutes % 60) | int %}
+          {% if days > 0 %}
+            {{ days }} day{{ 's' if days != 1 }}, {{ '%02d:%02d' | format(hours, mins) }}
+          {% else %}
+            {{ '%02d:%02d' | format(hours, mins) }}
+          {% endif %}
+
+      # Time since last sump run in human-readable format.
+      - name: "Sump Pump Last Run Formatted"
+        icon: mdi:clock-outline
+        state: >
+          {% set total_minutes = states('sensor.sump_pump_time_since_last_run') | float(0) | int %}
+          {% set days = (total_minutes // 1440) | int %}
+          {% set hours = ((total_minutes % 1440) // 60) | int %}
+          {% set mins = (total_minutes % 60) | int %}
+          {% if days > 0 %}
+            {{ days }} day{{ 's' if days != 1 }}, {{ '%02d:%02d' | format(hours, mins) }}
+          {% else %}
+            {{ '%02d:%02d' | format(hours, mins) }}
+          {% endif %}
+
+      # Interval between sump runs in minutes.
+      # Derived from sump_last_interval (stored in seconds).
+      - name: "Sump Pump Interval"
+        unit_of_measurement: "min"
+        icon: mdi:timer-sand
+        state: >
+          {{ (states('input_number.sump_last_interval') | float(0) / 60) | round(1) }}
+
+      # Time since last sump run in minutes.
+      # Recalculates continuously from sump_last_run timestamp.
+      - name: "Sump Pump Time Since Last Run"
+        unit_of_measurement: "min"
+        icon: mdi:clock-start
+        state: >
+          {% set last = as_timestamp(states('input_datetime.sump_last_run')) %}
+          {% if last %}
+            {{ ((now().timestamp() - last) / 60) | round(1) }}
+          {% else %}
+            0
+          {% endif %}

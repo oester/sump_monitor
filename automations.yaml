@@ -1,0 +1,240 @@
+# =============================================================================
+# Sump Pump Monitor — Automations
+# =============================================================================
+# Three automations that work together to monitor the sump pump:
+#   1. Sump Pump Interval Monitor    — detects interval changes and spring startup
+#   2. Sump Pump Not Running Alert   — adaptive watchdog for complete stoppage
+#   3. Sump Power Sensor Unavailable — alerts when the power sensor goes offline
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+#
+# Before importing, replace ALL occurrences of:
+#   sensor.sump_power_electric_consumption_w  → your sump power sensor entity ID
+#   notify.mobile_app_bobs_iphone_16_pro      → your notification service
+#   50  (the above: threshold)                → your sump running wattage threshold
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Pump Interval Monitor"
+  id: "sump_pump_interval_monitor"
+  description: >
+    Tracks the interval between sump pump runs. Alerts if the interval changes
+    by more than 25% (sudden anomaly). Sends a friendly "Sump Resumed"
+    notification instead of a false alert after long winter inactivity.
+    Action order is deliberate: timestamp and counter always update first so
+    data is never lost if the interval write fails.
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      above: 50                                             # <<< CONFIGURE: wattage threshold indicating sump is running
+  action:
+    - variables:
+        now_ts: "{{ now().timestamp() }}"
+        last_ts: "{{ as_timestamp(states('input_datetime.sump_last_run')) }}"
+        interval: "{{ (now_ts - last_ts) if last_ts else 0 }}"
+        prev_interval: "{{ states('input_number.sump_last_interval') | float(0) }}"
+        change_pct: >
+          {% if prev_interval > 0 %}
+            {{ ((interval - prev_interval) | abs) / prev_interval * 100 }}
+          {% else %}
+            0
+          {% endif %}
+
+    # Step 1: Always update timestamp first — never skipped
+    - alias: "Update last run timestamp"
+      action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.sump_last_run
+      data:
+        timestamp: "{{ now_ts }}"
+
+    # Step 2: Always increment cycle counter — never skipped
+    - alias: "Increment cycle counter"
+      action: counter.increment
+      target:
+        entity_id: counter.sump_pump_cycles
+
+    # Step 3: Update interval — clamped to 7 days max to prevent range errors
+    - alias: "Update last interval (clamped to 7 days max)"
+      action: input_number.set_value
+      target:
+        entity_id: input_number.sump_last_interval
+      data:
+        value: "{{ [interval, 604800] | min | int }}"
+
+    # Step 4: Send notification if appropriate
+    - choose:
+        - alias: "Normal operation — interval changed by > 25%"
+          conditions:
+            - condition: template
+              value_template: >
+                {{ prev_interval > 0 and change_pct > 25 and interval < 259200 }}
+              alias: "Change > 25% and not a spring startup (interval < 3 days)"
+          sequence:
+            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+              data:
+                title: "Sump Pump Interval Changed"
+                message: >
+                  Interval changed by {{ change_pct | round(1) }}%.
+                  Previous: {{ (prev_interval / 60) | round(1) }} min,
+                  Current: {{ (interval / 60) | round(1) }} min.
+
+        - alias: "Spring startup — first run after long absence (>= 3 days)"
+          conditions:
+            - condition: template
+              value_template: "{{ interval >= 259200 }}"
+              alias: "Interval >= 3 days — resuming after long absence"
+          sequence:
+            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+              data:
+                title: "Sump Pump Resumed"
+                message: >
+                  Sump pump ran for the first time in
+                  {{ (interval / 3600) | round(1) }} hours.
+                  Monitoring is now active.
+
+
+- alias: "Sump Pump Not Running Alert"
+  id: "sump_pump_not_running_alert"
+  description: >
+    Adaptive watchdog that alerts if the sump pump stops running entirely.
+    After each sump run, sets a timer based on the rolling average interval
+    × multiplier, clamped between min and max thresholds. If the timer fires
+    before the next run, sends an alert. Gradual post-rain slowdown naturally
+    extends the watchdog; a sudden stop triggers the alert.
+    Disable during winter months when the sump is not expected to run.
+  mode: restart
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      above: 50                                             # <<< CONFIGURE: wattage threshold
+      alias: "Sump pump started running"
+      id: sump_started
+
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.sump_pump_watchdog
+      alias: "Watchdog timer expired"
+      id: watchdog_expired
+
+  action:
+    - alias: "Route by trigger type"
+      choose:
+        - alias: "Sump ran — reset the watchdog timer"
+          conditions:
+            - condition: trigger
+              id: sump_started
+          sequence:
+            - variables:
+                # Falls back to max_minutes when rolling average is unknown
+                # (spring startup, post-restart) to avoid alert storms
+                interval_min: >
+                  {% set avg = states('sensor.sump_pump_interval_rolling_average') %}
+                  {% if avg in ['unknown', 'unavailable', 'none'] %}
+                    {{ states('input_number.sump_alert_max_minutes') | float(240) }}
+                  {% else %}
+                    {{ avg | float(0) | round(1) }}
+                  {% endif %}
+                multiplier: "{{ states('input_number.sump_alert_multiplier') | float(2.5) }}"
+                min_min: "{{ states('input_number.sump_alert_min_minutes') | float(30) }}"
+                max_min: "{{ states('input_number.sump_alert_max_minutes') | float(240) }}"
+                watchdog_min: "{{ [[interval_min * multiplier, min_min] | max, max_min] | min }}"
+            - action: timer.start
+              target:
+                entity_id: timer.sump_pump_watchdog
+              data:
+                duration: "{{ (watchdog_min * 60) | int }}"
+
+        - alias: "Watchdog expired — sump may not be running"
+          conditions:
+            - condition: trigger
+              id: watchdog_expired
+            - condition: template
+              value_template: >
+                {{ states('sensor.sump_power_electric_consumption_w') not in ['unavailable', 'unknown'] }}
+              alias: "Sump power sensor is available"  # <<< CONFIGURE: update entity ID if changed above
+          sequence:
+            - variables:
+                time_since: "{{ states('sensor.sump_pump_time_since_last_run') | float(0) | round(1) }}"
+                last_interval: "{{ states('sensor.sump_pump_interval') | float(0) | round(1) }}"
+            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+              data:
+                title: "⚠️ Sump Pump May Not Be Running"
+                message: >
+                  No sump activity detected for {{ time_since }} min.
+                  Last known interval was {{ last_interval }} min.
+
+
+- alias: "Sump Power Sensor Unavailable Alert"
+  id: "sump_power_sensor_unavailable_alert"
+  description: >
+    Alerts when the sump power sensor goes unavailable or unknown, cancels
+    the watchdog timer to prevent false alarms, and sends a recovery
+    notification when the sensor comes back online.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      to:
+        - unavailable
+        - unknown
+      for:
+        minutes: 2
+      alias: "Sump power sensor goes unavailable"
+      id: "sensor_offline"
+
+    - platform: state
+      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      from:
+        - unavailable
+        - unknown
+      not_to:
+        - unavailable
+        - unknown
+      alias: "Sump power sensor recovers"
+      id: "sensor_recovered"
+
+  action:
+    - choose:
+        - alias: "Sensor went unavailable — alert and cancel watchdog"
+          conditions:
+            - condition: trigger
+              id: ["sensor_offline"]
+          sequence:
+            - alias: "Cancel watchdog to prevent false sump-not-running alert"
+              action: timer.cancel
+              target:
+                entity_id: timer.sump_pump_watchdog
+            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+              data:
+                title: "⚠️ Sump Power Sensor Offline"
+                message: >
+                  The sump power sensor is unavailable.
+                  Sump pump monitoring is inactive until it recovers.
+
+        - alias: "Sensor recovered — notify and restart watchdog"
+          conditions:
+            - condition: trigger
+              id: ["sensor_recovered"]
+          sequence:
+            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+              data:
+                title: "✅ Sump Power Sensor Back Online"
+                message: >
+                  Sump pump monitoring has resumed.
+                  Watchdog will arm on the next sump run.
+            - variables:
+                interval_min: "{{ states('sensor.sump_pump_interval_rolling_average') | float(30) }}"
+                multiplier: "{{ states('input_number.sump_alert_multiplier') | float(2.5) }}"
+                min_min: "{{ states('input_number.sump_alert_min_minutes') | float(30) }}"
+                max_min: "{{ states('input_number.sump_alert_max_minutes') | float(240) }}"
+                watchdog_min: "{{ [[interval_min * multiplier, min_min] | max, max_min] | min }}"
+            - alias: "Restart watchdog based on rolling average"
+              action: timer.start
+              target:
+                entity_id: timer.sump_pump_watchdog
+              data:
+                duration: "{{ (watchdog_min * 60) | int }}"
