@@ -8,6 +8,7 @@ push notifications when something changes or the pump stops running.
 
 ## Features
 
+- **Excessive runtime detection** — alerts if a single pump run exceeds a configurable threshold, indicating a possible stuck float switch or pump problem
 - **Interval change detection** — alerts when the sump run interval changes
   suddenly by more than 25%, indicating a possible problem
 - **Adaptive watchdog** — automatically tightens during high-frequency cycling
@@ -30,7 +31,7 @@ The system uses a **power monitoring sensor** on the sump pump circuit as its
 primary signal. When the sensor exceeds a configurable wattage threshold, the
 sump is considered to be running.
 
-Three automations work together:
+Four automations work together:
 
 ### 1. Sump Pump Interval Monitor
 Fires on every sump run. Tracks the time since the last run, stores it as the
@@ -55,6 +56,12 @@ goes offline for more than 2 minutes, cancels the watchdog timer (preventing
 false alarms) and sends an alert. Sends a recovery notification and restarts
 the watchdog when the sensor comes back.
 
+### 4. Sump Pump Excessive Runtime Alert
+Records the start time when the sump begins running. When it stops, calculates
+run duration and alerts if it exceeded `input_number.sump_max_run_seconds`
+(default 30s). A stuck float switch or failing pump will often cause an
+unusually long run before stalling.
+
 ---
 
 ## Requirements
@@ -72,7 +79,7 @@ the watchdog when the sensor comes back.
 |---|---|
 | `helpers.yaml` | All required helpers — input_datetime, input_number, counter, timer, template sensors |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
-| `automations.yaml` | All three automations with customization markers |
+| `automations.yaml` | All four automations with customization markers |
 | `INSTALL.md` | Full step-by-step installation and customization guide |
 
 ---
@@ -104,6 +111,7 @@ to any dashboard for easy adjustment — no YAML editing required.
 | `input_number.sump_alert_multiplier` | 2.5× | How many times the rolling average interval to wait before alerting |
 | `input_number.sump_alert_min_minutes` | 30 min | Minimum watchdog duration — floor during heavy rain cycling |
 | `input_number.sump_alert_max_minutes` | 240 min | Maximum watchdog duration — ceiling and fallback when no history exists |
+| `input_number.sump_max_run_seconds` | 30s | Maximum single run duration before excessive runtime alert fires |
 
 ---
 
@@ -115,7 +123,7 @@ to any dashboard for easy adjustment — no YAML editing required.
 | **Summer / Fall** | All automations run year-round, no intervention needed |
 | **Winter** | Disable `automation.sump_pump_not_running_alert` to prevent repeated alerts |
 
-The Interval Monitor and Sensor Unavailable automations can remain enabled year-round.
+The Interval Monitor, Sensor Unavailable, and Excessive Runtime automations can remain enabled year-round.
 
 ---
 
@@ -135,6 +143,7 @@ baseline triggers an alert.
 |---|---|
 | Interval changed suddenly | *"Sump Pump Interval Changed — changed by 32.4%. Previous: 35 min, Current: 46 min."* |
 | Pump stopped running | *"⚠️ Sump Pump May Not Be Running — No activity for 94 min. Last interval: 37 min."* |
+| Excessive single run | *"⚠️ Sump Pump Excessive Runtime — Sump ran for 47.3 seconds (threshold: 30s). Possible pump or float switch issue."* |
 | Power sensor offline | *"⚠️ Sump Power Sensor Offline — monitoring inactive until recovered."* |
 | Power sensor recovered | *"✅ Sump Power Sensor Back Online — monitoring resumed."* |
 | Spring startup | *"Sump Pump Resumed — first run in 1,127 hours. Monitoring is now active."* |

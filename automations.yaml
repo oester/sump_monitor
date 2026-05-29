@@ -1,17 +1,18 @@
 # =============================================================================
 # Sump Pump Monitor — Automations
 # =============================================================================
-# Three automations that work together to monitor the sump pump:
+# Four automations that work together to monitor the sump pump:
 #   1. Sump Pump Interval Monitor    — detects interval changes and spring startup
 #   2. Sump Pump Not Running Alert   — adaptive watchdog for complete stoppage
 #   3. Sump Power Sensor Unavailable — alerts when the power sensor goes offline
+#   4. Sump Pump Excessive Runtime   — alerts if a single run exceeds a threshold
 #
 # ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
 #
 # Before importing, replace ALL occurrences of:
 #   sensor.your_sump_power_sensor  → your sump power sensor entity ID
 #   notify.mobile_your_device      → your notification service
-#   50  (the above: threshold)                → your sump running wattage threshold
+#   50  (the above:/below: threshold) → your sump running wattage threshold
 #
 # See INSTALL.md for full customization instructions.
 # =============================================================================
@@ -238,3 +239,62 @@
                 entity_id: timer.sump_pump_watchdog
               data:
                 duration: "{{ (watchdog_min * 60) | int }}"
+
+
+- alias: "Sump Pump Excessive Runtime Alert"
+  id: "sump_pump_excessive_runtime_alert"
+  description: >
+    Records the start time when the sump begins running. When it stops,
+    calculates the run duration and alerts if it exceeded the configured
+    threshold. A normal sump run is typically 6–30 seconds; extended runtime
+    may indicate a pump problem, stuck float switch, or high water table issue.
+  mode: restart
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      above: 50                                  # <<< CONFIGURE: wattage threshold
+      alias: "Sump started running"
+      id: sump_started
+
+    - platform: numeric_state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      below: 50                                  # <<< CONFIGURE: wattage threshold
+      alias: "Sump stopped running"
+      id: sump_stopped
+
+  action:
+    - choose:
+        - alias: "Sump started — record start timestamp"
+          conditions:
+            - condition: trigger
+              id: sump_started
+          sequence:
+            - alias: "Store run start time"
+              action: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.sump_run_start
+              data:
+                timestamp: "{{ now().timestamp() }}"
+
+        - alias: "Sump stopped — check run duration"
+          conditions:
+            - condition: trigger
+              id: sump_stopped
+            - alias: "Run start timestamp is valid"
+              condition: template
+              value_template: "{{ as_timestamp(states('input_datetime.sump_run_start')) > 0 }}"
+          sequence:
+            - variables:
+                start_ts: "{{ as_timestamp(states('input_datetime.sump_run_start')) }}"
+                run_seconds: "{{ (now().timestamp() - start_ts) | round(1) }}"
+                max_seconds: "{{ states('input_number.sump_max_run_seconds') | float(30) }}"
+            - condition: template
+              value_template: "{{ run_seconds > max_seconds }}"
+            - alias: "Alert — excessive runtime"
+              action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "⚠️ Sump Pump Excessive Runtime"
+                message: >
+                  Sump ran for {{ run_seconds }} seconds
+                  (threshold: {{ max_seconds | int }}s).
+                  Possible pump or float switch issue.

@@ -21,6 +21,14 @@ input_datetime:
     has_time: true
     icon: mdi:clock-time-eight
 
+  # Records the timestamp when each sump run begins.
+  # Used by the Excessive Runtime automation to calculate run duration.
+  sump_run_start:
+    name: "Sump Run Start"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-start
+
 
 # -----------------------------------------------------------------------------
 # INPUT NUMBER
@@ -70,6 +78,19 @@ input_number:
     unit_of_measurement: "min"
     icon: mdi:timer-plus
     initial: 240
+
+  # Maximum allowed single run duration in seconds.
+  # Alert fires if the sump runs longer than this in a single cycle.
+  # Default: 30 seconds. Adjust based on your pump's normal runtime.
+  sump_max_run_seconds:
+    name: "Sump Max Run Seconds"
+    min: 10
+    max: 300
+    step: 5
+    mode: slider
+    unit_of_measurement: "s"
+    icon: mdi:timer-alert
+    initial: 30
 
 
 # -----------------------------------------------------------------------------
