@@ -87,7 +87,7 @@ the watchdog when the sensor comes back.
 5. **Replace** the three placeholder values marked `# <<< CONFIGURE` throughout `automations.yaml`:
    - `sensor.sump_power_electric_consumption_w` → your power sensor entity ID
    - `50` (wattage threshold) → your pump's running wattage threshold
-   - `notify.mobile_app_bobs_iphone_16_pro` → your notification service
+   - `notify.mobile_your_device` → your notification service
 
 See [INSTALL.md](INSTALL.md) for the full guide including tuning, seasonal
 operation, and troubleshooting.
