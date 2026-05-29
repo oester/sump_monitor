@@ -9,8 +9,8 @@
 # ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
 #
 # Before importing, replace ALL occurrences of:
-#   sensor.sump_power_electric_consumption_w  → your sump power sensor entity ID
-#   notify.mobile_app_bobs_iphone_16_pro      → your notification service
+#   sensor.your_sump_power_sensor  → your sump power sensor entity ID
+#   notify.mobile_your_device      → your notification service
 #   50  (the above: threshold)                → your sump running wattage threshold
 #
 # See INSTALL.md for full customization instructions.
@@ -27,7 +27,7 @@
   mode: single
   trigger:
     - platform: numeric_state
-      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
       above: 50                                             # <<< CONFIGURE: wattage threshold indicating sump is running
   action:
     - variables:
@@ -73,7 +73,7 @@
                 {{ prev_interval > 0 and change_pct > 25 and interval < 259200 }}
               alias: "Change > 25% and not a spring startup (interval < 3 days)"
           sequence:
-            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
               data:
                 title: "Sump Pump Interval Changed"
                 message: >
@@ -87,7 +87,7 @@
               value_template: "{{ interval >= 259200 }}"
               alias: "Interval >= 3 days — resuming after long absence"
           sequence:
-            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
               data:
                 title: "Sump Pump Resumed"
                 message: >
@@ -108,7 +108,7 @@
   mode: restart
   trigger:
     - platform: numeric_state
-      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
       above: 50                                             # <<< CONFIGURE: wattage threshold
       alias: "Sump pump started running"
       id: sump_started
@@ -154,13 +154,13 @@
               id: watchdog_expired
             - condition: template
               value_template: >
-                {{ states('sensor.sump_power_electric_consumption_w') not in ['unavailable', 'unknown'] }}
+                {{ states('sensor.your_sump_power_sensor') not in ['unavailable', 'unknown'] }}
               alias: "Sump power sensor is available"  # <<< CONFIGURE: update entity ID if changed above
           sequence:
             - variables:
                 time_since: "{{ states('sensor.sump_pump_time_since_last_run') | float(0) | round(1) }}"
                 last_interval: "{{ states('sensor.sump_pump_interval') | float(0) | round(1) }}"
-            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
               data:
                 title: "⚠️ Sump Pump May Not Be Running"
                 message: >
@@ -177,7 +177,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
       to:
         - unavailable
         - unknown
@@ -187,7 +187,7 @@
       id: "sensor_offline"
 
     - platform: state
-      entity_id: sensor.sump_power_electric_consumption_w  # <<< CONFIGURE: your sump power sensor
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
       from:
         - unavailable
         - unknown
@@ -208,7 +208,7 @@
               action: timer.cancel
               target:
                 entity_id: timer.sump_pump_watchdog
-            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
               data:
                 title: "⚠️ Sump Power Sensor Offline"
                 message: >
@@ -220,7 +220,7 @@
             - condition: trigger
               id: ["sensor_recovered"]
           sequence:
-            - action: notify.mobile_app_bobs_iphone_16_pro  # <<< CONFIGURE: your notification service
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
               data:
                 title: "✅ Sump Power Sensor Back Online"
                 message: >
