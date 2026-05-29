@@ -185,7 +185,7 @@ With your threshold from Step 1b. There are **2 occurrences** (automations #1 an
 ### Notification service
 Replace every occurrence of:
 ```
-notify.mobile_app_bobs_iphone_16_pro
+notify.mobile_your_device
 ```
 With your notification service from Step 1c. There are **5 occurrences** across
 the three automations.
