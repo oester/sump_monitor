@@ -1,6 +1,6 @@
 # Sump Pump Monitor — Installation Guide
 
-This package installs three automations and a set of helpers that work together
+This package installs four automations and a set of helpers that work together
 to monitor a sump pump, detect anomalies, and send push notifications when the
 pump stops running, runs too long, or the power sensor goes offline.
 
@@ -22,9 +22,16 @@ pump stops running, runs too long, or the power sensor goes offline.
 
 | File | Description |
 |---|---|
-| `helpers.yaml` | All required helpers: input_datetime, input_number, counter, timer, and template sensors |
-| `statistics_sensor.yaml` | Instructions for creating the rolling average statistics sensor (UI only) |
-| `automations.yaml` | All four automations |
+| `sump_input_datetime.yaml` | Input datetime helpers — last run and run start timestamps |
+| `sump_input_number.yaml` | Input number helpers — interval storage and watchdog thresholds |
+| `sump_counter.yaml` | Counter helper — lifetime cycle count |
+| `sump_timer.yaml` | Timer helper — watchdog timer |
+| `sump_template_sensors.yaml` | Template sensors — interval, time-since, and formatted display sensors |
+| `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
+| `sump_pump_interval_monitor.yaml` | Automation 1 — interval change detection and spring startup |
+| `sump_pump_not_running_alert.yaml` | Automation 2 — adaptive watchdog for complete stoppage |
+| `sump_power_sensor_unavailable_alert.yaml` | Automation 3 — alerts when the power sensor goes offline |
+| `sump_pump_excessive_runtime_alert.yaml` | Automation 4 — alerts if a single run exceeds a threshold |
 | `INSTALL.md` | This file |
 
 ---
@@ -61,15 +68,14 @@ Common examples:
 
 ## Step 2 — Add Helpers
 
+Each helper type is in its own file for easy integration with existing configs.
+
 ### Simple helpers (input_datetime, input_number, counter, timer)
 
 **Option A — YAML (recommended for version control)**
 
-Add the contents of `helpers.yaml` to your HA configuration. Depending on
-your setup, either:
-
-1. Paste the relevant sections directly into `configuration.yaml`, or
-2. Use `!include` files — for example:
+Each file contains a single top-level key matching its helper type. Add the
+contents to your existing sections, or use `!include` files:
 
 ```yaml
 # configuration.yaml
@@ -79,12 +85,22 @@ counter: !include counters.yaml
 timer: !include timers.yaml
 ```
 
-Then paste the corresponding blocks from `helpers.yaml` into each file.
+Paste the contents of each file into the corresponding include file, or
+directly into `configuration.yaml` under the matching key.
 
 **Option B — UI**
 
 Go to **Settings → Devices & Services → Helpers → Add Helper** and create
-each helper manually using the values in `helpers.yaml` as reference.
+each helper manually using the values in the YAML files as reference.
+
+Helper files and what to create from each:
+
+| File | Helpers to create |
+|---|---|
+| `sump_input_datetime.yaml` | `sump_last_run`, `sump_run_start` |
+| `sump_input_number.yaml` | `sump_last_interval`, `sump_alert_multiplier`, `sump_alert_min_minutes`, `sump_alert_max_minutes`, `sump_max_run_seconds` |
+| `sump_counter.yaml` | `sump_pump_cycles` |
+| `sump_timer.yaml` | `sump_pump_watchdog` |
 
 ---
 
@@ -92,8 +108,8 @@ each helper manually using the values in `helpers.yaml` as reference.
 
 **Option A — YAML**
 
-Add the `template:` block from `helpers.yaml` to your `configuration.yaml`,
-or to a `templates.yaml` file referenced via:
+Add the `template:` block from `sump_template_sensors.yaml` to your
+`configuration.yaml`, or to a `templates.yaml` file referenced via:
 
 ```yaml
 # configuration.yaml
@@ -146,23 +162,31 @@ This sensor **must** be created through the HA UI — it cannot be added via YAM
 
 ## Step 4 — Add the Automations
 
+Each automation is in its own file named after its automation ID. Import them
+one at a time.
+
 **Option A — Import via UI**
 
 1. Go to **Settings → Automations & Scenes → Automations**
-2. Click the three-dot menu → **Import automation from YAML** (or use the
-   raw config editor)
-3. Paste each automation from `automations.yaml` one at a time
+2. Click the three-dot menu → **Import automation from YAML**
+3. Paste the contents of each file one at a time:
+   - `sump_pump_interval_monitor.yaml`
+   - `sump_pump_not_running_alert.yaml`
+   - `sump_power_sensor_unavailable_alert.yaml`
+   - `sump_pump_excessive_runtime_alert.yaml`
 
 **Option B — YAML file**
 
-If you manage automations via a YAML file, add the contents of `automations.yaml`
-to your automations file (typically `automations.yaml` in your config directory).
+If you manage automations via a YAML file, append the contents of each
+automation file to your automations file (typically `automations.yaml`
+in your config directory).
 
 ---
 
 ## Step 5 — Customize
 
-Open `automations.yaml` and replace all items marked `# <<< CONFIGURE`:
+Open each automation file and replace all items marked `# <<< CONFIGURE`.
+The same three values need replacing across the files:
 
 ### Power sensor entity ID
 Replace every occurrence of:
@@ -171,24 +195,36 @@ sensor.your_sump_power_sensor
 ```
 With your sensor entity ID from Step 1a.
 
-There are **7 occurrences** across the four automations (triggers in automations
-#1, #3, and #4 plus the guard condition in automation #2).
+| File | Occurrences |
+|---|---|
+| `sump_pump_interval_monitor.yaml` | 1 |
+| `sump_pump_not_running_alert.yaml` | 2 (trigger + guard condition) |
+| `sump_power_sensor_unavailable_alert.yaml` | 2 (offline + recovery triggers) |
+| `sump_pump_excessive_runtime_alert.yaml` | 2 (above + below triggers) |
 
 ### Wattage threshold
-Replace every occurrence of:
-```
-above: 50
-```
-With your threshold from Step 1b. Also replace the matching `below: 50` in
-automation #4. There are **3 occurrences** (automations #1, #2, and #4 above/below pair).
+Replace every occurrence of `above: 50` (and `below: 50` in the excessive
+runtime file) with your threshold from Step 1b.
+
+| File | Occurrences |
+|---|---|
+| `sump_pump_interval_monitor.yaml` | 1 (`above:`) |
+| `sump_pump_not_running_alert.yaml` | 1 (`above:`) |
+| `sump_pump_excessive_runtime_alert.yaml` | 2 (`above:` and `below:`) |
 
 ### Notification service
 Replace every occurrence of:
 ```
 notify.mobile_your_device
 ```
-With your notification service from Step 1c. There are **6 occurrences** across
-the four automations.
+With your notification service from Step 1c.
+
+| File | Occurrences |
+|---|---|
+| `sump_pump_interval_monitor.yaml` | 2 |
+| `sump_pump_not_running_alert.yaml` | 1 |
+| `sump_power_sensor_unavailable_alert.yaml` | 2 |
+| `sump_pump_excessive_runtime_alert.yaml` | 1 |
 
 ---
 
@@ -230,20 +266,6 @@ The helpers start with no history. On first use:
 
 ---
 
-## Tuning the Excessive Runtime Alert
-
-One `input_number` helper controls the runtime threshold:
-
-| Helper | Default | Range | Effect |
-|---|---|---|---|
-| `input_number.sump_max_run_seconds` | 30s | 10–300s | Alert fires if a single run exceeds this duration |
-
-Set this to a value comfortably above your pump's normal runtime. For example,
-if your sump typically runs for 6 seconds, 30 seconds (5×) is a safe starting
-threshold. If you get false alerts, increase it.
-
----
-
 ## Tuning the Watchdog
 
 Three `input_number` helpers control watchdog sensitivity. Adjust them from
@@ -273,7 +295,7 @@ dashboard with all three for easy slider access.
 |---|---|
 | **Spring** | Enable `automation.sump_pump_not_running_alert`. A "Sump Pump Resumed" notification confirms it's active after the first run. |
 | **Summer/Fall** | All three automations run year-round with no intervention. |
-| **Winter** | **Disable** `automation.sump_pump_not_running_alert` to avoid repeated alerts when the sump is intentionally not running. The other three automations can remain enabled. |
+| **Winter** | **Disable** `automation.sump_pump_not_running_alert` to avoid repeated alerts when the sump is intentionally not running. The other two automations can remain enabled. |
 
 ---
 
@@ -297,7 +319,3 @@ dashboard with all three for easy slider access.
 
 **False "not running" alerts during HA restart**
 - Normal on the first restart after install while the watchdog timer repopulates. The `sump_power_sensor_unavailable_alert` automation handles sensor offline scenarios with a 2-minute delay to absorb restart blips.
-
-**Getting excessive runtime alerts unexpectedly**
-- Check `input_number.sump_max_run_seconds` — it may be set too low for your pump's actual runtime. Watch a few sump cycles in Developer Tools → States to see the real duration, then set the threshold comfortably above that value.
-- If the power sensor reads noisy around the threshold (bouncing above/below 50W during a run), the automation may record a shorter run than actual. Consider adding a `for: seconds: 2` to the `below:` trigger, or adjusting the wattage threshold.

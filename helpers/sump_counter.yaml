@@ -1,0 +1,18 @@
+# =============================================================================
+# Sump Pump Monitor — Counter
+# =============================================================================
+# Lifetime count of sump pump run cycles.
+# Incremented by sump_pump_interval_monitor on every sump run.
+#
+# Add this block to your existing counter: section, or reference via:
+#   counter: !include counters.yaml
+# =============================================================================
+
+counter:
+
+  sump_pump_cycles:
+    name: "Sump Pump Cycles"
+    initial: 0
+    step: 1
+    restore: true
+    icon: mdi:counter

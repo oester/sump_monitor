@@ -1,0 +1,86 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 3: Power Sensor Unavailable Alert
+# =============================================================================
+# Alerts when the sump power sensor goes unavailable or unknown, cancels
+# the watchdog timer to prevent false alarms, and sends a recovery
+# notification when the sensor comes back online.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+#
+# Replace:
+#   sensor.your_sump_power_sensor  → your sump power sensor entity ID
+#   notify.mobile_your_device      → your notification service
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Power Sensor Unavailable Alert"
+  id: "sump_power_sensor_unavailable_alert"
+  description: >
+    Alerts when the sump power sensor goes unavailable or unknown, cancels
+    the watchdog timer to prevent false alarms, and sends a recovery
+    notification when the sensor comes back online.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      to:
+        - unavailable
+        - unknown
+      for:
+        minutes: 2
+      alias: "Sump power sensor goes unavailable"
+      id: "sensor_offline"
+
+    - platform: state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      from:
+        - unavailable
+        - unknown
+      not_to:
+        - unavailable
+        - unknown
+      alias: "Sump power sensor recovers"
+      id: "sensor_recovered"
+
+  action:
+    - choose:
+        - alias: "Sensor went unavailable — alert and cancel watchdog"
+          conditions:
+            - condition: trigger
+              id: ["sensor_offline"]
+          sequence:
+            - alias: "Cancel watchdog to prevent false sump-not-running alert"
+              action: timer.cancel
+              target:
+                entity_id: timer.sump_pump_watchdog
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "⚠️ Sump Power Sensor Offline"
+                message: >
+                  The sump power sensor is unavailable.
+                  Sump pump monitoring is inactive until it recovers.
+
+        - alias: "Sensor recovered — notify and restart watchdog"
+          conditions:
+            - condition: trigger
+              id: ["sensor_recovered"]
+          sequence:
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "✅ Sump Power Sensor Back Online"
+                message: >
+                  Sump pump monitoring has resumed.
+                  Watchdog will arm on the next sump run.
+            - variables:
+                interval_min: "{{ states('sensor.sump_pump_interval_rolling_average') | float(30) }}"
+                multiplier: "{{ states('input_number.sump_alert_multiplier') | float(2.5) }}"
+                min_min: "{{ states('input_number.sump_alert_min_minutes') | float(30) }}"
+                max_min: "{{ states('input_number.sump_alert_max_minutes') | float(240) }}"
+                watchdog_min: "{{ [[interval_min * multiplier, min_min] | max, max_min] | min }}"
+            - alias: "Restart watchdog based on rolling average"
+              action: timer.start
+              target:
+                entity_id: timer.sump_pump_watchdog
+              data:
+                duration: "{{ (watchdog_min * 60) | int }}"

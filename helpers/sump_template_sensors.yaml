@@ -1,0 +1,72 @@
+# =============================================================================
+# Sump Pump Monitor — Template Sensors
+# =============================================================================
+# Four template sensors for display and calculation.
+#
+# YAML OPTION: Add this template: block to your configuration.yaml, or
+# reference via:
+#   template: !include templates.yaml
+#
+# UI OPTION: If creating as flow-based UI helpers (Settings → Helpers →
+# Add Helper → Template → Sensor), you must paste the state template into
+# the UI editor and save. The YAML expressions below cannot be written via
+# the API for this helper type — the UI editor is required.
+# See INSTALL.md Step 2 for detailed UI instructions.
+# =============================================================================
+
+template:
+  - sensor:
+
+      # Interval between sump runs in human-readable format.
+      # Displays as HH:MM for intervals under 24 hours,
+      # or "N days, HH:MM" for longer intervals (e.g. winter, dry periods).
+      - name: "Sump Pump Interval Formatted"
+        icon: mdi:timer
+        state: >
+          {% set total_minutes = states('sensor.sump_pump_interval') | float(0) | int %}
+          {% set days = (total_minutes // 1440) | int %}
+          {% set hours = ((total_minutes % 1440) // 60) | int %}
+          {% set mins = (total_minutes % 60) | int %}
+          {% if days > 0 %}
+            {{ days }} day{{ 's' if days != 1 }}, {{ '%02d:%02d' | format(hours, mins) }}
+          {% else %}
+            {{ '%02d:%02d' | format(hours, mins) }}
+          {% endif %}
+
+      # Time since last sump run in human-readable format.
+      # Same HH:MM / N days, HH:MM format as above.
+      - name: "Sump Pump Last Run Formatted"
+        icon: mdi:clock-outline
+        state: >
+          {% set total_minutes = states('sensor.sump_pump_time_since_last_run') | float(0) | int %}
+          {% set days = (total_minutes // 1440) | int %}
+          {% set hours = ((total_minutes % 1440) // 60) | int %}
+          {% set mins = (total_minutes % 60) | int %}
+          {% if days > 0 %}
+            {{ days }} day{{ 's' if days != 1 }}, {{ '%02d:%02d' | format(hours, mins) }}
+          {% else %}
+            {{ '%02d:%02d' | format(hours, mins) }}
+          {% endif %}
+
+      # Interval between sump runs in minutes.
+      # Derived from sump_last_interval (stored in seconds).
+      # Source for sump_pump_interval_rolling_average statistics sensor.
+      - name: "Sump Pump Interval"
+        unit_of_measurement: "min"
+        icon: mdi:timer-sand
+        state: >
+          {{ (states('input_number.sump_last_interval') | float(0) / 60) | round(1) }}
+
+      # Time since last sump run in minutes.
+      # Recalculates continuously from sump_last_run timestamp.
+      # Used in the "not running" alert notification message.
+      - name: "Sump Pump Time Since Last Run"
+        unit_of_measurement: "min"
+        icon: mdi:clock-start
+        state: >
+          {% set last = as_timestamp(states('input_datetime.sump_last_run')) %}
+          {% if last %}
+            {{ ((now().timestamp() - last) / 60) | round(1) }}
+          {% else %}
+            0
+          {% endif %}

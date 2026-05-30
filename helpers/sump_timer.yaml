@@ -1,0 +1,19 @@
+# =============================================================================
+# Sump Pump Monitor — Timer
+# =============================================================================
+# Watchdog timer used by sump_pump_not_running_alert.
+# Started after every sump run with an adaptive duration based on the rolling
+# average interval. If it expires before the next run, an alert fires.
+# Cancelled by sump_power_sensor_unavailable_alert when the sensor goes offline
+# to prevent false alarms.
+#
+# Add this block to your existing timer: section, or reference via:
+#   timer: !include timers.yaml
+# =============================================================================
+
+timer:
+
+  sump_pump_watchdog:
+    name: "Sump Pump Watchdog"
+    restore: true
+    icon: mdi:timer-alert

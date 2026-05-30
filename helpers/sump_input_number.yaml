@@ -1,0 +1,77 @@
+# =============================================================================
+# Sump Pump Monitor — Input Numbers
+# =============================================================================
+# Five input_number helpers. Three control watchdog sensitivity (sliders),
+# one stores the last interval in seconds, one sets the excessive runtime
+# threshold.
+#
+# Add this block to your existing input_number: section, or reference via:
+#   input_number: !include input_numbers.yaml
+# =============================================================================
+
+input_number:
+
+  # Stores the most recently completed interval in seconds.
+  # Range allows up to 7 days to handle winter/dry periods.
+  # Written by sump_pump_interval_monitor on every sump run.
+  sump_last_interval:
+    name: "Sump Last Interval"
+    min: 0
+    max: 604800        # 7 days in seconds
+    step: 1
+    mode: box
+    unit_of_measurement: "s"
+    icon: mdi:counter
+
+  # Watchdog multiplier — how many times the rolling average interval to wait
+  # before alerting. Higher = more patient. Lower = more sensitive.
+  # Default: 2.5×
+  sump_alert_multiplier:
+    name: "Sump Alert Multiplier"
+    min: 1.5
+    max: 5.0
+    step: 0.1
+    mode: slider
+    unit_of_measurement: "×"
+    icon: mdi:multiply
+    initial: 2.5
+
+  # Minimum watchdog duration (minutes) — floor regardless of rolling average.
+  # Prevents over-alerting during heavy rain when the sump cycles frequently.
+  # Default: 30 min
+  sump_alert_min_minutes:
+    name: "Sump Alert Min Minutes"
+    min: 10
+    max: 120
+    step: 5
+    mode: slider
+    unit_of_measurement: "min"
+    icon: mdi:timer-minus
+    initial: 30
+
+  # Maximum watchdog duration (minutes) — ceiling and fallback when the rolling
+  # average is unknown (spring startup, post-restart).
+  # Default: 240 min
+  sump_alert_max_minutes:
+    name: "Sump Alert Max Minutes"
+    min: 60
+    max: 480
+    step: 15
+    mode: slider
+    unit_of_measurement: "min"
+    icon: mdi:timer-plus
+    initial: 240
+
+  # Maximum allowed single run duration in seconds.
+  # Alert fires if the sump runs longer than this in a single cycle.
+  # Set comfortably above your pump's normal runtime.
+  # Default: 30 seconds
+  sump_max_run_seconds:
+    name: "Sump Max Run Seconds"
+    min: 10
+    max: 300
+    step: 5
+    mode: slider
+    unit_of_measurement: "s"
+    icon: mdi:timer-alert
+    initial: 30

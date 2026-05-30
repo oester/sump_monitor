@@ -1,0 +1,26 @@
+# =============================================================================
+# Sump Pump Monitor — Input Datetimes
+# =============================================================================
+# Two datetime helpers used to track run timing.
+#
+# Add this block to your existing input_datetime: section, or reference via:
+#   input_datetime: !include input_datetimes.yaml
+# =============================================================================
+
+input_datetime:
+
+  # Timestamp of the most recent sump run.
+  # Updated by sump_pump_interval_monitor on every sump run.
+  sump_last_run:
+    name: "Sump Last Run"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-time-eight
+
+  # Timestamp recorded when each sump run begins.
+  # Used by sump_pump_excessive_runtime_alert to calculate run duration.
+  sump_run_start:
+    name: "Sump Run Start"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-start

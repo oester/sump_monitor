@@ -1,0 +1,95 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 1: Interval Monitor
+# =============================================================================
+# Tracks the interval between sump pump runs. Alerts if the interval changes
+# by more than 25% (sudden anomaly). Sends a friendly "Sump Resumed"
+# notification instead of a false alert after long winter inactivity.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+#
+# Replace:
+#   sensor.your_sump_power_sensor  → your sump power sensor entity ID
+#   notify.mobile_your_device      → your notification service
+#   50  (the above: threshold)     → your sump running wattage threshold
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Pump Interval Monitor"
+  id: "sump_pump_interval_monitor"
+  description: >
+    Tracks the interval between sump pump runs. Alerts if the interval changes
+    by more than 25% (sudden anomaly). Sends a friendly "Sump Resumed"
+    notification instead of a false alert after long winter inactivity.
+    Action order is deliberate: timestamp and counter always update first so
+    data is never lost if the interval write fails.
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      above: 50                                  # <<< CONFIGURE: wattage threshold indicating sump is running
+  action:
+    - variables:
+        now_ts: "{{ now().timestamp() }}"
+        last_ts: "{{ as_timestamp(states('input_datetime.sump_last_run')) }}"
+        interval: "{{ (now_ts - last_ts) if last_ts else 0 }}"
+        prev_interval: "{{ states('input_number.sump_last_interval') | float(0) }}"
+        change_pct: >
+          {% if prev_interval > 0 %}
+            {{ ((interval - prev_interval) | abs) / prev_interval * 100 }}
+          {% else %}
+            0
+          {% endif %}
+
+    # Step 1: Always update timestamp first — never skipped
+    - alias: "Update last run timestamp"
+      action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.sump_last_run
+      data:
+        timestamp: "{{ now_ts }}"
+
+    # Step 2: Always increment cycle counter — never skipped
+    - alias: "Increment cycle counter"
+      action: counter.increment
+      target:
+        entity_id: counter.sump_pump_cycles
+
+    # Step 3: Update interval — clamped to 7 days max to prevent range errors
+    - alias: "Update last interval (clamped to 7 days max)"
+      action: input_number.set_value
+      target:
+        entity_id: input_number.sump_last_interval
+      data:
+        value: "{{ [interval, 604800] | min | int }}"
+
+    # Step 4: Send notification if appropriate
+    - choose:
+        - alias: "Normal operation — interval changed by > 25%"
+          conditions:
+            - condition: template
+              value_template: >
+                {{ prev_interval > 0 and change_pct > 25 and interval < 259200 }}
+              alias: "Change > 25% and not a spring startup (interval < 3 days)"
+          sequence:
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "Sump Pump Interval Changed"
+                message: >
+                  Interval changed by {{ change_pct | round(1) }}%.
+                  Previous: {{ (prev_interval / 60) | round(1) }} min,
+                  Current: {{ (interval / 60) | round(1) }} min.
+
+        - alias: "Spring startup — first run after long absence (>= 3 days)"
+          conditions:
+            - condition: template
+              value_template: "{{ interval >= 259200 }}"
+              alias: "Interval >= 3 days — resuming after long absence"
+          sequence:
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "Sump Pump Resumed"
+                message: >
+                  Sump pump ran for the first time in
+                  {{ (interval / 3600) | round(1) }} hours.
+                  Monitoring is now active.

@@ -1,0 +1,91 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 2: Not Running Alert
+# =============================================================================
+# Adaptive watchdog that alerts if the sump pump stops running entirely.
+# After each sump run, sets a timer based on the rolling average interval
+# × multiplier, clamped between min and max thresholds. If the timer fires
+# before the next run, sends an alert.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+#
+# Replace:
+#   sensor.your_sump_power_sensor  → your sump power sensor entity ID
+#   notify.mobile_your_device      → your notification service
+#   50  (the above: threshold)     → your sump running wattage threshold
+#
+# Disable this automation during winter months when the sump is not expected
+# to run. Re-enable in spring — the watchdog arms on the first run.
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Pump Not Running Alert"
+  id: "sump_pump_not_running_alert"
+  description: >
+    Adaptive watchdog that alerts if the sump pump stops running entirely.
+    After each sump run, sets a timer based on the rolling average interval
+    × multiplier, clamped between min and max thresholds. If the timer fires
+    before the next run, sends an alert. Gradual post-rain slowdown naturally
+    extends the watchdog; a sudden stop triggers the alert.
+    Disable during winter months when the sump is not expected to run.
+  mode: restart
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      above: 50                                  # <<< CONFIGURE: wattage threshold
+      alias: "Sump pump started running"
+      id: sump_started
+
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.sump_pump_watchdog
+      alias: "Watchdog timer expired"
+      id: watchdog_expired
+
+  action:
+    - alias: "Route by trigger type"
+      choose:
+        - alias: "Sump ran — reset the watchdog timer"
+          conditions:
+            - condition: trigger
+              id: sump_started
+          sequence:
+            - variables:
+                # Falls back to max_minutes when rolling average is unknown
+                # (spring startup, post-restart) to avoid alert storms
+                interval_min: >
+                  {% set avg = states('sensor.sump_pump_interval_rolling_average') %}
+                  {% if avg in ['unknown', 'unavailable', 'none'] %}
+                    {{ states('input_number.sump_alert_max_minutes') | float(240) }}
+                  {% else %}
+                    {{ avg | float(0) | round(1) }}
+                  {% endif %}
+                multiplier: "{{ states('input_number.sump_alert_multiplier') | float(2.5) }}"
+                min_min: "{{ states('input_number.sump_alert_min_minutes') | float(30) }}"
+                max_min: "{{ states('input_number.sump_alert_max_minutes') | float(240) }}"
+                watchdog_min: "{{ [[interval_min * multiplier, min_min] | max, max_min] | min }}"
+            - action: timer.start
+              target:
+                entity_id: timer.sump_pump_watchdog
+              data:
+                duration: "{{ (watchdog_min * 60) | int }}"
+
+        - alias: "Watchdog expired — sump may not be running"
+          conditions:
+            - condition: trigger
+              id: watchdog_expired
+            - condition: template
+              value_template: >
+                {{ states('sensor.your_sump_power_sensor') not in ['unavailable', 'unknown'] }}
+              alias: "Sump power sensor is available"  # <<< CONFIGURE: update entity ID if changed above
+          sequence:
+            - variables:
+                time_since: "{{ states('sensor.sump_pump_time_since_last_run') | float(0) | round(1) }}"
+                last_interval: "{{ states('sensor.sump_pump_interval') | float(0) | round(1) }}"
+            - action: notify.mobile_your_device  # <<< CONFIGURE: your notification service
+              data:
+                title: "⚠️ Sump Pump May Not Be Running"
+                message: >
+                  No sump activity detected for {{ time_since }} min.
+                  Last known interval was {{ last_interval }} min.
