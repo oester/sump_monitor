@@ -75,12 +75,29 @@ unusually long run before stalling.
 
 ## Files
 
+### `automations/`
 | File | Description |
 |---|---|
-| `helpers.yaml` | All required helpers — input_datetime, input_number, counter, timer, template sensors |
+| `sump_pump_interval_monitor.yaml` | Automation 1 — interval change detection and spring startup |
+| `sump_pump_not_running_alert.yaml` | Automation 2 — adaptive watchdog for complete stoppage |
+| `sump_power_sensor_unavailable_alert.yaml` | Automation 3 — alerts when the power sensor goes offline |
+| `sump_pump_excessive_runtime_alert.yaml` | Automation 4 — alerts if a single run exceeds a threshold |
+
+### `helpers/`
+| File | Description |
+|---|---|
+| `sump_input_datetime.yaml` | Input datetime helpers — last run and run start timestamps |
+| `sump_input_number.yaml` | Input number helpers — interval storage and watchdog thresholds |
+| `sump_counter.yaml` | Counter helper — lifetime cycle count |
+| `sump_timer.yaml` | Timer helper — watchdog timer |
+| `sump_template_sensors.yaml` | Template sensors — interval, time-since, and formatted display sensors |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
-| `automations.yaml` | All four automations with customization markers |
+
+### Root
+| File | Description |
+|---|---|
 | `INSTALL.md` | Full step-by-step installation and customization guide |
+| `README.md` | This file |
 
 ---
 
@@ -88,11 +105,11 @@ unusually long run before stalling.
 
 1. **Identify** your sump power sensor entity ID and the wattage it reads when
    the pump is running
-2. **Add helpers** from `helpers.yaml` to your HA config (or create via UI)
-3. **Create** the rolling average statistics sensor via the HA UI (see `statistics_sensor.yaml`)
-4. **Add automations** from `automations.yaml` to your HA config
-5. **Replace** the three placeholder values marked `# <<< CONFIGURE` throughout `automations.yaml`:
-   - `sensor.sump_power_electric_consumption_w` → your power sensor entity ID
+2. **Add helpers** from the `helpers/` directory to your HA config (or create via UI)
+3. **Create** the rolling average statistics sensor via the HA UI (see `helpers/statistics_sensor.yaml`)
+4. **Add automations** from the `automations/` directory to your HA config
+5. **Replace** the three placeholder values marked `# <<< CONFIGURE` in each automation file:
+   - `sensor.your_sump_power_sensor` → your power sensor entity ID
    - `50` (wattage threshold) → your pump's running wattage threshold
    - `notify.mobile_your_device` → your notification service
 
