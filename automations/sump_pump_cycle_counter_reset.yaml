@@ -1,0 +1,26 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 5: Cycle Counter Reset
+# =============================================================================
+# Resets the cycle counter to zero every night at midnight, so
+# counter.sump_pump_cycles always reflects today's cycle count rather than
+# accumulating indefinitely.
+#
+# No customization required — this automation has no sump-specific entity
+# references beyond the counter helper itself.
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Pump Cycle Counter Reset"
+  id: "sump_pump_cycle_counter_reset"
+  description: >
+    Resets the sump pump cycle counter to zero every night at midnight, so
+    it always shows today's cycle count instead of a running lifetime total.
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - action: counter.reset
+      target:
+        entity_id: counter.sump_pump_cycles

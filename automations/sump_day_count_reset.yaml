@@ -1,0 +1,27 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 7: Daily Cycle Count — Reset
+# =============================================================================
+# Resets the daily cycle counter to zero shortly after midnight, so
+# counter.sump_day_count and the derived "Sump Daycount rate" sensor
+# always reflect today's activity only.
+#
+# No customization required.
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Day Count Reset"
+  id: "sump_day_count_reset"
+  description: >
+    Resets the daily cycle counter (counter.sump_day_count) shortly after
+    midnight.
+  mode: single
+  trigger:
+    - platform: time_pattern
+      hours: "0"
+      minutes: "0"
+      seconds: "15"
+  action:
+    - action: counter.reset
+      target:
+        entity_id: counter.sump_day_count

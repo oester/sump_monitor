@@ -1,7 +1,7 @@
 # =============================================================================
 # Sump Pump Monitor — Template Sensors
 # =============================================================================
-# Four template sensors for display and calculation.
+# Five template sensors for display and calculation.
 #
 # YAML OPTION: Add this template: block to your configuration.yaml, or
 # reference via:
@@ -12,6 +12,11 @@
 # the UI editor and save. The YAML expressions below cannot be written via
 # the API for this helper type — the UI editor is required.
 # See INSTALL.md Step 2 for detailed UI instructions.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+# "Sump Running" is the only sensor here with an external reference —
+# replace sensor.your_sump_power_sensor and the 50 threshold with the same
+# values used in the automation files.
 # =============================================================================
 
 template:
@@ -69,4 +74,16 @@ template:
             {{ ((now().timestamp() - last) / 60) | round(1) }}
           {% else %}
             0
+          {% endif %}
+
+      # Simple on/off indicator for whether the sump is currently running,
+      # using the same power threshold as the automations. Handy as a
+      # boolean dashboard tile separate from the raw wattage sensor.
+      - name: "Sump Running"
+        icon: mdi:water-pump
+        state: >
+          {% if states('sensor.your_sump_power_sensor') | float(0) > 50 %}
+            true
+          {% else %}
+            false
           {% endif %}

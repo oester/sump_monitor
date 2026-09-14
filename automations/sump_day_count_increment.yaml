@@ -1,0 +1,31 @@
+# =============================================================================
+# Sump Pump Monitor — Automation 6: Daily Cycle Count — Increment
+# =============================================================================
+# Increments a second, independent daily cycle counter every time the sump
+# starts running. Paired with Automation 7 (nightly reset) and the
+# "Sump Daycount rate" derivative helper to show cycles/hour today — a
+# fast-moving companion to counter.sump_pump_cycles, useful for judging
+# storm intensity at a glance.
+#
+# ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
+#
+# Replace:
+#   sensor.your_sump_power_sensor  → your sump power sensor entity ID
+#   50  (the above: threshold)     → your sump running wattage threshold
+#
+# See INSTALL.md for full customization instructions.
+# =============================================================================
+
+- alias: "Sump Day Count Increment"
+  id: "sump_day_count_increment"
+  description: >
+    Increments the daily cycle counter every time the sump starts running.
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.your_sump_power_sensor  # <<< CONFIGURE: your sump power sensor
+      above: 50                                  # <<< CONFIGURE: wattage threshold
+  action:
+    - action: counter.increment
+      target:
+        entity_id: counter.sump_day_count

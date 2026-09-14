@@ -1,0 +1,22 @@
+# =============================================================================
+# Sump Pump Monitor — Daily Cycle Rate Sensor
+# =============================================================================
+# This sensor must be created through the Home Assistant UI as a flow-based
+# helper. It cannot be created via YAML. See INSTALL.md for instructions.
+#
+# Settings → Devices & Services → Helpers → Add Helper → Derivative
+#
+# Configuration:
+#   Name:               Sump Daycount rate
+#   Input sensor:       counter.sump_day_count
+#   Time window:        1:00:00 (1 hour)
+#   Unit time:           h
+#   Decimal precision:  2
+#
+# The resulting entity ID will be:
+#   sensor.sump_daycount_rate
+#
+# Shows cycles/hour based on the last hour of counter.sump_day_count
+# activity — a fast-moving companion to the daily total, useful for judging
+# storm intensity at a glance without waiting for a full day to pass.
+# =============================================================================

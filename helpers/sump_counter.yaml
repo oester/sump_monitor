@@ -1,8 +1,24 @@
 # =============================================================================
-# Sump Pump Monitor — Counter
+# Sump Pump Monitor — Counters
 # =============================================================================
-# Lifetime count of sump pump run cycles.
-# Incremented by sump_pump_interval_monitor on every sump run.
+# Two independent cycle counters, both reset nightly at midnight:
+#
+#   sump_pump_cycles — incremented by sump_pump_interval_monitor on every
+#                       sump run; reset nightly by
+#                       sump_pump_cycle_counter_reset. Shows today's cycle
+#                       count (not a running lifetime total).
+#
+#   sump_day_count    — incremented by sump_day_count_increment on every
+#                        sump run; reset nightly by sump_day_count_reset.
+#                        Exists to feed the "Sump Daycount rate" derivative
+#                        helper (cycles/hour) — see derivative_sensor.yaml.
+#
+# The two are intentionally kept separate rather than merged: sump_pump_cycles
+# is the counter the core automations were built around, while sump_day_count
+# is a second, independent counter dedicated to driving the hourly rate
+# sensor. If you don't want the rate sensor, sump_day_count and its two
+# automations (sump_day_count_increment / sump_day_count_reset) can be
+# skipped entirely.
 #
 # Add this block to your existing counter: section, or reference via:
 #   counter: !include counters.yaml
@@ -16,3 +32,10 @@ counter:
     step: 1
     restore: true
     icon: mdi:counter
+
+  sump_day_count:
+    name: "Sump Day Count"
+    initial: 0
+    step: 1
+    restore: true
+    icon: mdi:numeric

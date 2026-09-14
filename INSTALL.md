@@ -1,8 +1,9 @@
 # Sump Pump Monitor — Installation Guide
 
-This package installs four automations and a set of helpers that work together
-to monitor a sump pump, detect anomalies, and send push notifications when the
-pump stops running, runs too long, or the power sensor goes offline.
+This package installs seven automations and a set of helpers that work
+together to monitor a sump pump, detect anomalies, send push notifications
+when the pump stops running, runs too long, or the power sensor goes offline,
+and track daily cycle counts.
 
 ---
 
@@ -24,14 +25,18 @@ pump stops running, runs too long, or the power sensor goes offline.
 |---|---|
 | `sump_input_datetime.yaml` | Input datetime helpers — last run and run start timestamps |
 | `sump_input_number.yaml` | Input number helpers — interval storage and watchdog thresholds |
-| `sump_counter.yaml` | Counter helper — lifetime cycle count |
+| `sump_counter.yaml` | Counter helpers — today's cycle count and the daily counter feeding the rate sensor |
 | `sump_timer.yaml` | Timer helper — watchdog timer |
-| `sump_template_sensors.yaml` | Template sensors — interval, time-since, and formatted display sensors |
+| `sump_template_sensors.yaml` | Template sensors — interval, time-since, formatted display, and running-indicator sensors |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
+| `derivative_sensor.yaml` | Instructions for the daily cycle rate sensor (UI-only creation) |
 | `sump_pump_interval_monitor.yaml` | Automation 1 — interval change detection and spring startup |
 | `sump_pump_not_running_alert.yaml` | Automation 2 — adaptive watchdog for complete stoppage |
 | `sump_power_sensor_unavailable_alert.yaml` | Automation 3 — alerts when the power sensor goes offline |
 | `sump_pump_excessive_runtime_alert.yaml` | Automation 4 — alerts if a single run exceeds a threshold |
+| `sump_pump_cycle_counter_reset.yaml` | Automation 5 — resets the cycle counter nightly |
+| `sump_day_count_increment.yaml` | Automation 6 — increments the daily counter on every run |
+| `sump_day_count_reset.yaml` | Automation 7 — resets the daily counter nightly |
 | `INSTALL.md` | This file |
 
 ---
@@ -99,8 +104,11 @@ Helper files and what to create from each:
 |---|---|
 | `sump_input_datetime.yaml` | `sump_last_run`, `sump_run_start` |
 | `sump_input_number.yaml` | `sump_last_interval`, `sump_alert_multiplier`, `sump_alert_min_minutes`, `sump_alert_max_minutes`, `sump_max_run_seconds` |
-| `sump_counter.yaml` | `sump_pump_cycles` |
+| `sump_counter.yaml` | `sump_pump_cycles`, `sump_day_count` |
 | `sump_timer.yaml` | `sump_pump_watchdog` |
+
+> `sump_day_count` is only needed if you also want the "Sump Daycount rate"
+> sensor from Step 3. Skip it (and automations 6/7 below) if you don't.
 
 ---
 
@@ -135,11 +143,18 @@ template: !include templates.yaml
 Do the same for `Sump Pump Interval` and `Sump Pump Time Since Last Run` if
 not using YAML.
 
+For `Sump Running`, replace `sensor.your_sump_power_sensor` and the `50`
+threshold in the template with your own values from Step 1 before pasting
+it into the UI editor (Option B) or your `template:` block (Option A).
+
 ---
 
-## Step 3 — Create the Rolling Average Statistics Sensor
+## Step 3 — Create the Rolling Average and Daily Rate Sensors
 
-This sensor **must** be created through the HA UI — it cannot be added via YAML.
+Both of these sensors **must** be created through the HA UI — neither can be
+added via YAML.
+
+### 3a. Rolling Average (required)
 
 1. Go to **Settings → Devices & Services → Helpers → Add Helper**
 2. Select **Statistical characteristic**
@@ -158,6 +173,25 @@ This sensor **must** be created through the HA UI — it cannot be added via YAM
 > **Note:** This sensor needs 5 sump pump cycles to fully populate. Until then,
 > the watchdog automation falls back to the maximum alert threshold (240 min default).
 
+### 3b. Daily Cycle Rate (optional)
+
+Skip this if you didn't create `counter.sump_day_count` in Step 2.
+
+1. Go to **Settings → Devices & Services → Helpers → Add Helper**
+2. Select **Derivative**
+3. Configure as follows:
+
+| Field | Value |
+|---|---|
+| Name | `Sump Daycount rate` |
+| Input sensor | `counter.sump_day_count` |
+| Time window | `1:00:00` (1 hour) |
+| Unit time | `h` |
+| Decimal precision | 2 |
+
+4. Click **Submit**. The entity ID will be `sensor.sump_daycount_rate`. See
+   `derivative_sensor.yaml` for reference.
+
 ---
 
 ## Step 4 — Add the Automations
@@ -174,6 +208,9 @@ one at a time.
    - `sump_pump_not_running_alert.yaml`
    - `sump_power_sensor_unavailable_alert.yaml`
    - `sump_pump_excessive_runtime_alert.yaml`
+   - `sump_pump_cycle_counter_reset.yaml`
+   - `sump_day_count_increment.yaml` (skip if not using the daily rate sensor)
+   - `sump_day_count_reset.yaml` (skip if not using the daily rate sensor)
 
 **Option B — YAML file**
 
@@ -185,8 +222,9 @@ in your config directory).
 
 ## Step 5 — Customize
 
-Open each automation file and replace all items marked `# <<< CONFIGURE`.
-The same three values need replacing across the files:
+Open each automation file (and the `Sump Running` template sensor from Step 2)
+and replace all items marked `# <<< CONFIGURE`. The same three values need
+replacing across the files:
 
 ### Power sensor entity ID
 Replace every occurrence of:
@@ -201,6 +239,11 @@ With your sensor entity ID from Step 1a.
 | `sump_pump_not_running_alert.yaml` | 2 (trigger + guard condition) |
 | `sump_power_sensor_unavailable_alert.yaml` | 2 (offline + recovery triggers) |
 | `sump_pump_excessive_runtime_alert.yaml` | 2 (above + below triggers) |
+| `sump_day_count_increment.yaml` | 1 |
+| `sump_template_sensors.yaml` (`Sump Running`) | 1 |
+
+`sump_pump_cycle_counter_reset.yaml` and `sump_day_count_reset.yaml` have no
+occurrences — they only touch counter helpers and need no customization.
 
 ### Wattage threshold
 Replace every occurrence of `above: 50` (and `below: 50` in the excessive
@@ -211,6 +254,8 @@ runtime file) with your threshold from Step 1b.
 | `sump_pump_interval_monitor.yaml` | 1 (`above:`) |
 | `sump_pump_not_running_alert.yaml` | 1 (`above:`) |
 | `sump_pump_excessive_runtime_alert.yaml` | 2 (`above:` and `below:`) |
+| `sump_day_count_increment.yaml` | 1 (`above:`) |
+| `sump_template_sensors.yaml` (`Sump Running`) | 1 |
 
 ### Notification service
 Replace every occurrence of:
@@ -225,6 +270,9 @@ With your notification service from Step 1c.
 | `sump_pump_not_running_alert.yaml` | 1 |
 | `sump_power_sensor_unavailable_alert.yaml` | 2 |
 | `sump_pump_excessive_runtime_alert.yaml` | 1 |
+
+`sump_pump_cycle_counter_reset.yaml`, `sump_day_count_increment.yaml`, and
+`sump_day_count_reset.yaml` never notify — no occurrences to replace.
 
 ---
 
@@ -244,12 +292,15 @@ Verify in **Developer Tools → States** that these entities exist and have vali
 - `input_number.sump_alert_max_minutes`
 - `input_number.sump_max_run_seconds`
 - `counter.sump_pump_cycles`
+- `counter.sump_day_count` (if using the daily rate sensor)
 - `timer.sump_pump_watchdog`
 - `sensor.sump_pump_interval`
 - `sensor.sump_pump_time_since_last_run`
 - `sensor.sump_pump_interval_rolling_average`
 - `sensor.sump_pump_interval_formatted`
 - `sensor.sump_pump_last_run_formatted`
+- `sensor.sump_running`
+- `sensor.sump_daycount_rate` (if using the daily rate sensor)
 
 ---
 

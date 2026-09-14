@@ -20,6 +20,11 @@ push notifications when something changes or the pump stops running.
   after winter inactivity instead of a misleading large-percentage-change alert
 - **Human-readable display sensors** — formatted `HH:MM` and `N days, HH:MM`
   sensors for use in dashboards and badges
+- **Daily cycle tracking** — a self-resetting daily counter plus an hourly
+  rate sensor for judging storm intensity at a glance, and a simple
+  running/not-running indicator sensor
+- **Self-resetting counters** — cycle counters reset automatically at
+  midnight, no manual reset needed
 - **Fully tunable** — watchdog sensitivity controlled by three sliders, no
   YAML editing required after install
 
@@ -31,7 +36,7 @@ The system uses a **power monitoring sensor** on the sump pump circuit as its
 primary signal. When the sensor exceeds a configurable wattage threshold, the
 sump is considered to be running.
 
-Four automations work together:
+Seven automations work together:
 
 ### 1. Sump Pump Interval Monitor
 Fires on every sump run. Tracks the time since the last run, stores it as the
@@ -62,6 +67,19 @@ run duration and alerts if it exceeded `input_number.sump_max_run_seconds`
 (default 30s). A stuck float switch or failing pump will often cause an
 unusually long run before stalling.
 
+### 5. Sump Pump Cycle Counter Reset
+Resets `counter.sump_pump_cycles` to zero every night at midnight, so it
+always shows today's cycle count instead of accumulating forever.
+
+### 6. Sump Day Count Increment
+Increments a second, independent counter (`counter.sump_day_count`) every
+time the sump starts running. Exists specifically to feed the hourly rate
+sensor below.
+
+### 7. Sump Day Count Reset
+Resets `counter.sump_day_count` shortly after midnight, keeping it and the
+rate sensor scoped to today only.
+
 ---
 
 ## Requirements
@@ -82,20 +100,24 @@ unusually long run before stalling.
 | `sump_pump_not_running_alert.yaml` | Automation 2 — adaptive watchdog for complete stoppage |
 | `sump_power_sensor_unavailable_alert.yaml` | Automation 3 — alerts when the power sensor goes offline |
 | `sump_pump_excessive_runtime_alert.yaml` | Automation 4 — alerts if a single run exceeds a threshold |
+| `sump_pump_cycle_counter_reset.yaml` | Automation 5 — resets the cycle counter nightly |
+| `sump_day_count_increment.yaml` | Automation 6 — increments the daily counter on every run |
+| `sump_day_count_reset.yaml` | Automation 7 — resets the daily counter nightly |
 
 ### `helpers/`
 | File | Description |
 |---|---|
 | `sump_input_datetime.yaml` | Input datetime helpers — last run and run start timestamps |
 | `sump_input_number.yaml` | Input number helpers — interval storage and watchdog thresholds |
-| `sump_counter.yaml` | Counter helper — lifetime cycle count |
+| `sump_counter.yaml` | Counter helpers — today's cycle count and the daily counter feeding the rate sensor |
 | `sump_timer.yaml` | Timer helper — watchdog timer |
-| `sump_template_sensors.yaml` | Template sensors — interval, time-since, and formatted display sensors |
+| `sump_template_sensors.yaml` | Template sensors — interval, time-since, formatted display, and running-indicator sensors |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
 
 ### Root
 | File | Description |
 |---|---|
+| `derivative_sensor.yaml` | Instructions for the daily cycle rate sensor (UI-only creation) |
 | `INSTALL.md` | Full step-by-step installation and customization guide |
 | `README.md` | This file |
 
@@ -106,12 +128,17 @@ unusually long run before stalling.
 1. **Identify** your sump power sensor entity ID and the wattage it reads when
    the pump is running
 2. **Add helpers** from the `helpers/` directory to your HA config (or create via UI)
-3. **Create** the rolling average statistics sensor via the HA UI (see `helpers/statistics_sensor.yaml`)
+3. **Create** the rolling average and daily rate sensors via the HA UI (see
+   `helpers/statistics_sensor.yaml` and `derivative_sensor.yaml`)
 4. **Add automations** from the `automations/` directory to your HA config
-5. **Replace** the three placeholder values marked `# <<< CONFIGURE` in each automation file:
+5. **Replace** the placeholder values marked `# <<< CONFIGURE` in each
+   automation file and in the "Sump Running" template sensor:
    - `sensor.your_sump_power_sensor` → your power sensor entity ID
    - `50` (wattage threshold) → your pump's running wattage threshold
    - `notify.mobile_your_device` → your notification service
+
+   `sump_pump_cycle_counter_reset.yaml` and `sump_day_count_reset.yaml`
+   need no customization.
 
 See [INSTALL.md](INSTALL.md) for the full guide including tuning, seasonal
 operation, and troubleshooting.
