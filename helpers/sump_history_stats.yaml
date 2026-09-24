@@ -1,0 +1,47 @@
+# =============================================================================
+# Sump Pump Monitor — History Stats Sensors
+# =============================================================================
+# Two history_stats sensors that summarize today's pump activity, both built
+# on the "Sump Running" template sensor (sensor.sump_running) from
+# sump_template_sensors.yaml:
+#
+#   sensor.sump_run_count_today  — number of times the pump started today
+#   sensor.sump_run_time_today   — total pump run time today, in hours
+#
+# Both use a midnight-to-midnight window, so they reset on their own each
+# day with no automation needed.
+#
+# YAML OPTION: Add these entries to the sensor: section of your
+# configuration.yaml, or to a sensor include file:
+#   sensor: !include sensor.yaml
+#
+# UI OPTION: Settings → Devices & Services → Helpers → Add Helper →
+# History stats, once per sensor, using the values below.
+#
+# No customization needed — both sensors read sensor.sump_running, which
+# already carries your power sensor and threshold. Create "Sump Running"
+# first.
+# =============================================================================
+
+sensor:
+
+  # Number of times the pump has started today (each false → true
+  # transition of sensor.sump_running counts as one run).
+  - platform: history_stats
+    name: Sump Run Count Today
+    entity_id: sensor.sump_running
+    state: "true"
+    type: count
+    start: "{{ now().replace(hour=0, minute=0, second=0) }}"
+    duration:
+      hours: 24
+
+  # Total time sensor.sump_running has been "true" today, in hours.
+  - platform: history_stats
+    name: Sump Run Time Today
+    entity_id: sensor.sump_running
+    state: "true"
+    type: time
+    start: "{{ now().replace(hour=0, minute=0, second=0) }}"
+    duration:
+      hours: 24

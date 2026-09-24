@@ -28,6 +28,7 @@ and track daily cycle counts.
 | `sump_counter.yaml` | Counter helpers — today's cycle count and the daily counter feeding the rate sensor |
 | `sump_timer.yaml` | Timer helper — watchdog timer |
 | `sump_template_sensors.yaml` | Template sensors — interval, time-since, formatted display, and running-indicator sensors |
+| `sump_history_stats.yaml` | History stats sensors — today's run count and total run time |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
 | `derivative_sensor.yaml` | Instructions for the daily cycle rate sensor (UI-only creation) |
 | `sump_pump_interval_monitor.yaml` | Automation 1 — interval change detection and spring startup |
@@ -59,6 +60,11 @@ Check what wattage the sensor reports when the sump pump is actively running.
 The default threshold is **50W** — adjust if your pump draws more or less at startup.
 A conservative value slightly above idle noise is best (e.g. if the pump draws
 5W idle and 300W running, 50W is a safe threshold).
+
+The `Sump Running` template sensor uses a separate, lower threshold of
+**20W**. It feeds today's run-time total, so a lower threshold counts more of
+each run's ramp-up and ramp-down. Keep it above idle noise but below the
+automation threshold.
 
 ### 1c. Notification service
 Find your notification service entity. In HA, go to Developer Tools → Services,
@@ -143,9 +149,35 @@ template: !include templates.yaml
 Do the same for `Sump Pump Interval` and `Sump Pump Time Since Last Run` if
 not using YAML.
 
-For `Sump Running`, replace `sensor.your_sump_power_sensor` and the `50`
+For `Sump Running`, replace `sensor.your_sump_power_sensor` and the `20`
 threshold in the template with your own values from Step 1 before pasting
 it into the UI editor (Option B) or your `template:` block (Option A).
+
+---
+
+### History stats sensors (optional)
+
+`sump_history_stats.yaml` adds two sensors built on `sensor.sump_running`:
+today's run count (`sensor.sump_run_count_today`) and total run time in
+hours (`sensor.sump_run_time_today`). Both reset at midnight by themselves.
+Create `Sump Running` first. Neither sensor needs customization.
+
+**Option A — YAML**
+
+Add both `- platform: history_stats` entries to the `sensor:` section of
+your `configuration.yaml`, or to an include file:
+
+```yaml
+# configuration.yaml
+sensor: !include sensor.yaml
+```
+
+**Option B — UI**
+
+Go to **Settings → Devices & Services → Helpers → Add Helper → History
+stats** and create each sensor with the values in the YAML file: entity
+`sensor.sump_running`, state `true`, type **Count** (or **Time**), start
+`{{ now().replace(hour=0, minute=0, second=0) }}`, duration 24 hours.
 
 ---
 
@@ -255,7 +287,7 @@ runtime file) with your threshold from Step 1b.
 | `sump_pump_not_running_alert.yaml` | 1 (`above:`) |
 | `sump_pump_excessive_runtime_alert.yaml` | 2 (`above:` and `below:`) |
 | `sump_day_count_increment.yaml` | 1 (`above:`) |
-| `sump_template_sensors.yaml` (`Sump Running`) | 1 |
+| `sump_template_sensors.yaml` (`Sump Running`) | 1 (`> 20` — the lower Sump Running threshold, see Step 1b) |
 
 ### Notification service
 Replace every occurrence of:
@@ -300,6 +332,8 @@ Verify in **Developer Tools → States** that these entities exist and have vali
 - `sensor.sump_pump_interval_formatted`
 - `sensor.sump_pump_last_run_formatted`
 - `sensor.sump_running`
+- `sensor.sump_run_count_today` (if using the history stats sensors)
+- `sensor.sump_run_time_today` (if using the history stats sensors)
 - `sensor.sump_daycount_rate` (if using the daily rate sensor)
 
 ---

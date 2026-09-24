@@ -15,8 +15,9 @@
 #
 # ITEMS REQUIRING CUSTOMIZATION are marked with: # <<< CONFIGURE
 # "Sump Running" is the only sensor here with an external reference —
-# replace sensor.your_sump_power_sensor and the 50 threshold with the same
-# values used in the automation files.
+# replace sensor.your_sump_power_sensor with the same power sensor used in
+# the automation files. Its 20W threshold is deliberately lower than the
+# automations' 50W — see the comment on that sensor below.
 # =============================================================================
 
 template:
@@ -76,13 +77,21 @@ template:
             0
           {% endif %}
 
-      # Simple on/off indicator for whether the sump is currently running,
-      # using the same power threshold as the automations. Handy as a
-      # boolean dashboard tile separate from the raw wattage sensor.
+      # Simple on/off indicator for whether the sump is currently running.
+      # Handy as a boolean dashboard tile separate from the raw wattage
+      # sensor, and the source for the history_stats sensors in
+      # sump_history_stats.yaml (today's run count and run time).
+      #
+      # Uses a 20W threshold — intentionally lower than the automations' 50W.
+      # A lower threshold counts more of each run's ramp-up/ramp-down as
+      # "running", which is what the run-time total should measure; the
+      # automations only need a clean start/stop edge. Adjust both to suit
+      # your pump (INSTALL.md Step 1b).
+      # <<< CONFIGURE: sensor.your_sump_power_sensor and the 20W threshold
       - name: "Sump Running"
         icon: mdi:water-pump
         state: >
-          {% if states('sensor.your_sump_power_sensor') | float(0) > 50 %}
+          {% if states('sensor.your_sump_power_sensor') | float(0) > 20 %}
             true
           {% else %}
             false

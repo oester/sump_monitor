@@ -21,8 +21,8 @@ push notifications when something changes or the pump stops running.
 - **Human-readable display sensors** — formatted `HH:MM` and `N days, HH:MM`
   sensors for use in dashboards and badges
 - **Daily cycle tracking** — a self-resetting daily counter plus an hourly
-  rate sensor for judging storm intensity at a glance, and a simple
-  running/not-running indicator sensor
+  rate sensor for judging storm intensity at a glance, today's run count and
+  total run time, and a simple running/not-running indicator sensor
 - **Self-resetting counters** — cycle counters reset automatically at
   midnight, no manual reset needed
 - **Fully tunable** — watchdog sensitivity controlled by three sliders, no
@@ -112,6 +112,7 @@ rate sensor scoped to today only.
 | `sump_counter.yaml` | Counter helpers — today's cycle count and the daily counter feeding the rate sensor |
 | `sump_timer.yaml` | Timer helper — watchdog timer |
 | `sump_template_sensors.yaml` | Template sensors — interval, time-since, formatted display, and running-indicator sensors |
+| `sump_history_stats.yaml` | History stats sensors — today's run count and total run time |
 | `statistics_sensor.yaml` | Instructions for the rolling average statistics sensor (UI-only creation) |
 
 ### Root
@@ -134,7 +135,8 @@ rate sensor scoped to today only.
 5. **Replace** the placeholder values marked `# <<< CONFIGURE` in each
    automation file and in the "Sump Running" template sensor:
    - `sensor.your_sump_power_sensor` → your power sensor entity ID
-   - `50` (wattage threshold) → your pump's running wattage threshold
+   - `50` (wattage threshold in the automations) and `20` (the lower
+     threshold in "Sump Running") → your pump's running wattage thresholds
    - `notify.mobile_your_device` → your notification service
 
    `sump_pump_cycle_counter_reset.yaml` and `sump_day_count_reset.yaml`
